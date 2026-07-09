@@ -105,7 +105,25 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
-        source: "/:path((?!_next/static|_next/image|api).*)",
+        source: "/login",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source: "/signup",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source: "/forgot-password",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source:
+          "/:path(dashboard|inbox|contacts|pipelines|broadcasts|automations|settings|flows)(.*)",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source:
+          "/:path((?!_next/static|_next/image|api|login$|signup$|forgot-password$|dashboard|inbox|contacts|pipelines|broadcasts|automations|settings|flows).*)",
         headers: [
           {
             key: "Cache-Control",

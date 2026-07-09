@@ -1,9 +1,8 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,36 +34,10 @@ function LoginPageInner() {
   // account. After a successful sign-in we send them to the join
   // page to accept rather than to /dashboard.
   const inviteToken = searchParams.get("invite");
+  const error = searchParams.get("error");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  const supabase = createClient();
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
-    }
-
-    if (inviteToken) {
-      router.push(`/join/${encodeURIComponent(inviteToken)}`);
-    } else {
-      router.push("/dashboard");
-    }
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -87,7 +60,10 @@ function LoginPageInner() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+          <form action="/api/auth/login" method="post" className="flex flex-col gap-4">
+            {inviteToken && (
+              <input type="hidden" name="invite" value={inviteToken} />
+            )}
             {error && (
               <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
                 {error}
@@ -100,6 +76,7 @@ function LoginPageInner() {
               </Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
@@ -123,6 +100,7 @@ function LoginPageInner() {
               </div>
               <Input
                 id="password"
+                name="password"
                 type="password"
                 placeholder="Enter your password"
                 value={password}
@@ -134,10 +112,9 @@ function LoginPageInner() {
 
             <Button
               type="submit"
-              disabled={loading}
               className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              Sign in
             </Button>
           </form>
 

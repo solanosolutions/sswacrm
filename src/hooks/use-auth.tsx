@@ -110,11 +110,17 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  * Makes ONE getSession() call for the whole tree instead of one per
  * component, avoiding internal lock contention in the Supabase client.
  */
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+export function AuthProvider({
+  children,
+  initialUser = null,
+}: {
+  children: ReactNode;
+  initialUser?: User | null;
+}) {
+  const [user, setUser] = useState<User | null>(initialUser);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [account, setAccount] = useState<AccountSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialUser);
   // Tracked separately from `loading`. The session settles fast (one
   // local cookie read); the profile fetch crosses the network and
   // settles later. Callers that gate on `profile.*` need to know which
@@ -236,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) console.error("[AuthProvider] getSession error:", error.message);
 
         if (!mounted) return;
-        const currentUser = session?.user ?? null;
+        const currentUser = session?.user ?? initialUser ?? null;
         setUser(currentUser);
 
         if (currentUser) {
@@ -263,9 +269,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
-      const currentUser = session?.user ?? null;
+      const currentUser =
+        session?.user ?? (event === "INITIAL_SESSION" ? initialUser : null);
       setUser(currentUser);
 
       if (currentUser) {
@@ -284,7 +291,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, initialUser]);
 
   const signOut = useCallback(async () => {
     const supabase = createClient();
