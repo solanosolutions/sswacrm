@@ -41,7 +41,9 @@ export async function findActiveKeyByHash(
     .maybeSingle();
 
   if (error) {
-    console.error('[api-keys/store] lookup error:', error.message);
+    // The lookup predicate contains a credential hash. Keep database details
+    // out of logs in case an upstream error ever reflects query parameters.
+    console.error('[api-keys/store] lookup failed:', error.code);
     return null;
   }
   if (!data) return null;

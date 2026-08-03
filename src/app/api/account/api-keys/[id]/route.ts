@@ -6,7 +6,7 @@
 // trail ("this key existed and was turned off") and so the auth
 // path's liveness check (`findActiveKeyByHash` filters revoked
 // rows) starts rejecting it immediately. Admin+, enforced here and
-// by the `api_keys_update` RLS policy.
+// again inside the narrowly scoped revocation RPC.
 //
 // Revocation is effective on the next request: once `revoked_at` is
 // set, `findActiveKeyByHash` returns null and the key 401s.
@@ -36,27 +36,24 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Scope the update by account_id as well as id so an admin can
-    // never revoke another account's key by guessing a UUID. (RLS
-    // already enforces this; the explicit filter is belt-and-braces
-    // and makes the "0 rows updated → 404" path precise.)
-    const { data, error } = await ctx.supabase
-      .from('api_keys')
-      .update({ revoked_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('account_id', ctx.accountId)
-      .is('revoked_at', null)
-      .select('id')
-      .maybeSingle();
+    // The RPC scopes by account_id and only transitions NULL -> timestamp,
+    // so a direct client cannot revoke another account's key or reactivate one.
+    const { data, error } = await ctx.supabase.rpc('revoke_account_api_key', {
+      p_account_id: ctx.accountId,
+      p_key_id: id,
+    });
 
     if (error) {
-      console.error('[DELETE /api/account/api-keys/[id]] error:', error);
+      console.error(
+        '[DELETE /api/account/api-keys/[id]] revocation failed:',
+        error.code
+      );
       return NextResponse.json(
         { error: 'Failed to revoke API key' },
         { status: 500 }
       );
     }
-    if (!data) {
+    if (data !== true) {
       // Either no such key in this account, or it was already revoked.
       return NextResponse.json(
         { error: 'API key not found or already revoked' },

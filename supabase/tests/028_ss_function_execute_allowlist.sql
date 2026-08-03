@@ -22,11 +22,14 @@ BEGIN
           'peek_invitation(text)'
         ]
         WHEN 'authenticated' THEN ARRAY[
+          'create_account_api_key(uuid,text,text,text,text[],timestamp with time zone)',
           'filter_contacts_by_tags(uuid[],text,integer,integer)',
           'is_account_member(uuid,account_role_enum)',
+          'list_account_api_keys(uuid)',
           'peek_invitation(text)',
           'redeem_invitation(text)',
           'remove_account_member(uuid)',
+          'revoke_account_api_key(uuid,uuid)',
           'set_member_role(uuid,account_role_enum)',
           'touch_presence(text)',
           'transfer_account_ownership(uuid)'

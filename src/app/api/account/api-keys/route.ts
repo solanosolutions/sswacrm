@@ -5,11 +5,11 @@
 //   POST — mint a new key.
 //
 // These are the *dashboard* endpoints for managing keys, so they
-// authenticate the normal way (cookie session) and go through the
-// RLS client. Listing is open to any member (viewer+) — the roster
+// authenticate the normal way (cookie session) and call narrow,
+// account-authorized RPCs. Listing is open to any member (viewer+) — the roster
 // is not secret; the secret (the key itself) is never in it. Minting
 // is admin+ (a key hands out capabilities), enforced by both
-// `requireRole('admin')` here and the `api_keys_insert` RLS policy.
+// `requireRole('admin')` here and again inside the creation RPC.
 //
 // IMPORTANT: the plaintext key is returned exactly ONCE, in the POST
 // response. We persist only its SHA-256 hash, so neither GET nor any
@@ -37,25 +37,18 @@ const MAX_NAME_LEN = 80;
 // invite-link clamp. NULL/absent = never expires.
 const MAX_EXPIRY_DAYS = 365;
 
-// Columns safe to expose. `key_hash` is deliberately excluded — it
-// never leaves the server.
-const SAFE_COLUMNS =
-  'id, name, key_prefix, scopes, last_used_at, expires_at, revoked_at, created_at';
-
 export async function GET() {
   try {
-    // Any member can view the roster (RLS allows it); we just need a
-    // resolved account context.
+    // Any member can view the roster; both this account context and the
+    // RPC verify membership so direct Data API calls cannot bypass it.
     const ctx = await getCurrentAccount();
 
-    const { data, error } = await ctx.supabase
-      .from('api_keys')
-      .select(SAFE_COLUMNS)
-      .eq('account_id', ctx.accountId)
-      .order('created_at', { ascending: false });
+    const { data, error } = await ctx.supabase.rpc('list_account_api_keys', {
+      p_account_id: ctx.accountId,
+    });
 
     if (error) {
-      console.error('[GET /api/account/api-keys] fetch error:', error);
+      console.error('[GET /api/account/api-keys] fetch failed:', error.code);
       return NextResponse.json(
         { error: 'Failed to load API keys' },
         { status: 500 }
@@ -124,21 +117,23 @@ export async function POST(request: Request) {
     const { plaintext, hash, prefix } = generateApiKey();
 
     const { data, error } = await ctx.supabase
-      .from('api_keys')
-      .insert({
-        account_id: ctx.accountId,
-        created_by: ctx.userId,
-        name: rawName,
-        key_prefix: prefix,
-        key_hash: hash,
-        scopes,
-        expires_at: expiresAt,
+      .rpc('create_account_api_key', {
+        p_account_id: ctx.accountId,
+        p_name: rawName,
+        p_key_prefix: prefix,
+        p_key_hash: hash,
+        p_scopes: scopes,
+        p_expires_at: expiresAt,
       })
-      .select(SAFE_COLUMNS)
       .single();
 
     if (error || !data) {
-      console.error('[POST /api/account/api-keys] insert error:', error);
+      // Do not log the full PostgREST error: a uniqueness detail can
+      // contain the credential hash that was passed to the RPC.
+      console.error(
+        '[POST /api/account/api-keys] creation failed:',
+        error?.code ?? 'empty_result'
+      );
       return NextResponse.json(
         { error: 'Failed to create API key' },
         { status: 500 }
